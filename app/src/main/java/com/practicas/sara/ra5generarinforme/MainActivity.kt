@@ -33,12 +33,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var textoSalarioTotal: TextView
     private lateinit var textoSalarioMedio: TextView
     private lateinit var textoSalarioMaximo: TextView
+
+    private lateinit var textoSalarioMinimo: TextView
     private lateinit var barraValencia: ProgressBar
     private lateinit var barraMadrid: ProgressBar
     private lateinit var barraAlicante: ProgressBar
+    private lateinit var barraBarcelona: ProgressBar
     private lateinit var textoCantidadValencia: TextView
     private lateinit var textoCantidadMadrid: TextView
     private lateinit var textoCantidadAlicante: TextView
+    private lateinit var textoCantidadBarcelona: TextView
     private lateinit var contenedorOfertas: LinearLayout
 
     private val ofertas = ArrayList<Oferta>()
@@ -63,13 +67,16 @@ class MainActivity : AppCompatActivity() {
         textoNumeroOfertas = findViewById(R.id.textoNumeroOfertas)
         textoSalarioTotal = findViewById(R.id.textoSalarioTotal)
         textoSalarioMedio = findViewById(R.id.textoSalarioMedio)
+        textoSalarioMinimo = findViewById(R.id.textoSalarioMinimo)
         textoSalarioMaximo = findViewById(R.id.textoSalarioMaximo)
         barraValencia = findViewById(R.id.barraValencia)
         barraMadrid = findViewById(R.id.barraMadrid)
         barraAlicante = findViewById(R.id.barraAlicante)
+        barraBarcelona = findViewById(R.id.barraBarcelona)
         textoCantidadValencia = findViewById(R.id.textoCantidadValencia)
         textoCantidadMadrid = findViewById(R.id.textoCantidadMadrid)
         textoCantidadAlicante = findViewById(R.id.textoCantidadAlicante)
+        textoCantidadBarcelona = findViewById(R.id.textoCantidadBarcelona)
         contenedorOfertas = findViewById(R.id.contenedorOfertas)
 
         // 3. Configurar Spinner
@@ -101,7 +108,7 @@ class MainActivity : AppCompatActivity() {
 
     // (FASE 6) Configurar el Spinner (Ahora está al mismo nivel que onCreate)
     private fun configurarSpinner() {
-        val ciudades = arrayOf("Todas", "Valencia", "Madrid", "Alicante")
+        val ciudades = arrayOf("Todas", "Valencia", "Madrid", "Alicante","Barcelona")
         val adaptador = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_item,
@@ -129,6 +136,7 @@ class MainActivity : AppCompatActivity() {
             val oferta = Oferta(
                 objetoJson.getInt("id"),
                 objetoJson.getString("puesto"),
+                objetoJson.getString("modalidad"),
                 objetoJson.getString("empresa"),
                 objetoJson.getString("ciudad"),
                 objetoJson.getInt("salario")
@@ -158,13 +166,20 @@ class MainActivity : AppCompatActivity() {
         } else {
             0.0
         }
+
+        val salarioMinimo = ofertasFiltradas.minOfOrNull { it.salario } ?: 0
         val salarioMaximo = ofertasFiltradas.maxOfOrNull { it.salario } ?: 0
+        val mejorOferta = ofertasFiltradas.maxByOrNull { it.salario }
+
+
+
 
         // Asignar los textos a los TextView
         textoCiudadSeleccionada.text = "Ciudad seleccionada: $ciudad"
         textoNumeroOfertas.text = "Numero de ofertas: $numeroOfertas"
         textoSalarioTotal.text = "Salario total: ${formatearSalario(salarioTotal)}"
         textoSalarioMedio.text = "Salario medio: ${formatearSalario(salarioMedio.toInt())}"
+        textoSalarioMinimo.text = "Salario minimo: ${formatearSalario(salarioMinimo.toInt())}"
         textoSalarioMaximo.text = "Salario máximo: ${formatearSalario(salarioMaximo)}"
 
         // Limpiamos la lista anterior (por si el usuario filtra varias veces)
@@ -173,12 +188,21 @@ class MainActivity : AppCompatActivity() {
         // Recorremos el resultado y creamos un TextView para cada oferta
         ofertasFiltradas.forEachIndexed { indice, oferta ->
             val textoOferta = TextView(this)
-            textoOferta.text = "${indice + 1}. ${oferta.puesto}\n" +
+            textoOferta.text = "${indice + 1}. ${oferta.puesto} - ${oferta.modalidad}\n"+
                     "${oferta.empresa} - ${oferta.ciudad} - ${formatearSalario(oferta.salario)}"
             textoOferta.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16f)
             textoOferta.setPadding(0, 0, 0, 24)
             contenedorOfertas.addView(textoOferta)
         }
+        if (mejorOferta != null) {
+            val textoConclusion = TextView(this)
+            textoConclusion.text = "\nLa mejor oferta es: ${mejorOferta.puesto} en ${mejorOferta.empresa} (${formatearSalario(mejorOferta.salario)})"
+            textoConclusion.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16f)
+            textoConclusion.setTypeface(null, android.graphics.Typeface.BOLD)
+            textoConclusion.setPadding(0, 24, 0, 0)
+            contenedorOfertas.addView(textoConclusion)
+        }
+
         mostrarGrafico(ofertasFiltradas)
     }
 
@@ -191,6 +215,7 @@ class MainActivity : AppCompatActivity() {
         val ofertasValencia = ofertasFiltradas.count { it.ciudad == "Valencia" }
         val ofertasMadrid = ofertasFiltradas.count { it.ciudad == "Madrid" }
         val ofertasAlicante = ofertasFiltradas.count { it.ciudad == "Alicante" }
+        val ofertasBarcelona = ofertasFiltradas.count { it.ciudad == "Barcelona" }
 
         // El valor máximo para las barras (usamos maxOf con 1 para evitar división por cero)
         val valorMaximo = maxOf(ofertasValencia, ofertasMadrid, ofertasAlicante, 1)
@@ -199,23 +224,28 @@ class MainActivity : AppCompatActivity() {
         barraValencia.max = valorMaximo
         barraMadrid.max = valorMaximo
         barraAlicante.max = valorMaximo
+        barraBarcelona.max = valorMaximo
 
         // Asignamos el progreso real a cada barra
         barraValencia.progress = ofertasValencia
         barraMadrid.progress = ofertasMadrid
         barraAlicante.progress = ofertasAlicante
+        barraBarcelona.progress = ofertasBarcelona
 
         // Actualizamos los textos con el número
         textoCantidadValencia.text = ofertasValencia.toString()
         textoCantidadMadrid.text = ofertasMadrid.toString()
         textoCantidadAlicante.text = ofertasAlicante.toString()
+        textoCantidadBarcelona.text = ofertasBarcelona.toString()
     }
 
     private fun abrirSelectorParaGuardarPdf() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
         intent.addCategory(Intent.CATEGORY_OPENABLE)
         intent.type = "application/pdf"
-        intent.putExtra(Intent.EXTRA_TITLE, "informe_ofertas.pdf")
+        //Cambiamos "generar informe" por informe_ciudad
+        val ciudad = spinnerCiudad.selectedItem.toString()
+        intent.putExtra(Intent.EXTRA_TITLE, "informe_$ciudad.pdf")
         startActivityForResult(intent, codigoCrearPdf)
     }
 
