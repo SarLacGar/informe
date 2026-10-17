@@ -12,9 +12,18 @@ import android.widget.ProgressBar
 import android.widget.Spinner
 import android.widget.TextView
 import org.json.JSONArray
+import android.app.Activity
+import android.content.Intent
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.pdf.PdfDocument
+import android.net.Uri
+import android.widget.Toast
+import kotlin.math.min
 
 class MainActivity : AppCompatActivity() {
 
+    private val codigoCrearPdf = 100
     private lateinit var spinnerCiudad: Spinner
     private lateinit var botonGenerarInforme: Button
     private lateinit var botonExportarPdf: Button
@@ -73,6 +82,19 @@ class MainActivity : AppCompatActivity() {
             val ciudadSeleccionada = spinnerCiudad.selectedItem.toString()
             val ofertasFiltradas = filtrarOfertasPorCiudad(ciudadSeleccionada)
             mostrarResultado(ciudadSeleccionada, ofertasFiltradas)
+        }
+
+        botonExportarPdf.setOnClickListener {
+            val ciudadSeleccionada = spinnerCiudad.selectedItem.toString()
+            val ofertasFiltradas = filtrarOfertasPorCiudad(ciudadSeleccionada)
+
+            // Generamos el informe en pantalla primero
+            mostrarResultado(ciudadSeleccionada, ofertasFiltradas)
+
+            // contenedorInforme.post espera a que Android dibuje la pantalla antes de crear el PDF
+            contenedorInforme.post {
+                abrirSelectorParaGuardarPdf()
+            }
         }
 
     } // <-- AQUÍ SE CIERRA EL ONCREATE
@@ -157,10 +179,111 @@ class MainActivity : AppCompatActivity() {
             textoOferta.setPadding(0, 0, 0, 24)
             contenedorOfertas.addView(textoOferta)
         }
+        mostrarGrafico(ofertasFiltradas)
     }
 
     private fun formatearSalario(salario: Int): String {
         return "%d".format(salario).replace(" ", ".") + " €"
+    }
+
+    private fun mostrarGrafico(ofertasFiltradas: List<Oferta>) {
+        // Contamos cuántas ofertas hay por ciudad
+        val ofertasValencia = ofertasFiltradas.count { it.ciudad == "Valencia" }
+        val ofertasMadrid = ofertasFiltradas.count { it.ciudad == "Madrid" }
+        val ofertasAlicante = ofertasFiltradas.count { it.ciudad == "Alicante" }
+
+        // El valor máximo para las barras (usamos maxOf con 1 para evitar división por cero)
+        val valorMaximo = maxOf(ofertasValencia, ofertasMadrid, ofertasAlicante, 1)
+
+        // Configuramos el máximo de las barras
+        barraValencia.max = valorMaximo
+        barraMadrid.max = valorMaximo
+        barraAlicante.max = valorMaximo
+
+        // Asignamos el progreso real a cada barra
+        barraValencia.progress = ofertasValencia
+        barraMadrid.progress = ofertasMadrid
+        barraAlicante.progress = ofertasAlicante
+
+        // Actualizamos los textos con el número
+        textoCantidadValencia.text = ofertasValencia.toString()
+        textoCantidadMadrid.text = ofertasMadrid.toString()
+        textoCantidadAlicante.text = ofertasAlicante.toString()
+    }
+
+    private fun abrirSelectorParaGuardarPdf() {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+        intent.addCategory(Intent.CATEGORY_OPENABLE)
+        intent.type = "application/pdf"
+        intent.putExtra(Intent.EXTRA_TITLE, "informe_ofertas.pdf")
+        startActivityForResult(intent, codigoCrearPdf)
+    }
+
+    //   ubicación
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+
+        if (requestCode == codigoCrearPdf && resultCode == Activity.RESULT_OK) {
+            val uriPdf = data?.data
+            if (uriPdf != null) {
+                exportarInformePdf(uriPdf)
+            }
+        }
+    }
+
+    // Crear el PDF con PdfDocument
+    private fun exportarInformePdf(uriPdf: Uri) {
+        val documentoPdf = PdfDocument()
+        val pagina = PdfDocument.PageInfo.Builder(595, 842, 1).create() // Tamaño A4 aprox
+        val paginaPdf = documentoPdf.startPage(pagina)
+        val canvas = paginaPdf.canvas
+
+        // Pintamos el fondo de blanco
+        canvas.drawColor(Color.WHITE)
+
+        // Dibujamos el título
+        val pinturaTitulo = Paint()
+        pinturaTitulo.color = Color.BLACK
+        pinturaTitulo.textSize = 24f
+        pinturaTitulo.isFakeBoldText = true
+        canvas.drawText("Informe de ofertas", 32f, 48f, pinturaTitulo)
+
+        // Reutilizamos el informe que ya está en pantalla
+        val anchoDisponible = 531f
+        val altoDisponible = 760f
+        val anchoInforme = contenedorInforme.width
+        val altoInforme = contenedorInforme.height
+
+        if (anchoInforme > 0 && altoInforme > 0) {
+            // Calculamos la escala para que quepa en el PDF
+            val escala = min(anchoDisponible / anchoInforme, altoDisponible / altoInforme)
+
+            canvas.save()
+            canvas.translate(32f, 72f) // Margen
+            canvas.scale(escala, escala) // Escalar
+            contenedorInforme.draw(canvas) // Dibujar el XML en el PDF
+            canvas.restore()
+        }
+
+        documentoPdf.finishPage(paginaPdf)
+
+        // Guardar el archivo
+        try {
+            val salida = contentResolver.openOutputStream(uriPdf)
+            if (salida != null) {
+                salida.use {
+                    documentoPdf.writeTo(salida)
+                }
+                Toast.makeText(this, "PDF guardado", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "No se pudo guardar el PDF", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "No se pudo guardar el PDF", Toast.LENGTH_LONG).show()
+        } finally {
+            documentoPdf.close()
+        }
     }
 
 } // <-- AQUÍ SE CIERRA LA CLASE MAINACTIVITY
