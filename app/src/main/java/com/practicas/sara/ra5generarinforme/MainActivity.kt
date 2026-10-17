@@ -69,6 +69,12 @@ class MainActivity : AppCompatActivity() {
         // 4. Cargar las ofertas del JSON (FASE 7)
         ofertas.addAll(cargarOfertas())
 
+        botonGenerarInforme.setOnClickListener {
+            val ciudadSeleccionada = spinnerCiudad.selectedItem.toString()
+            val ofertasFiltradas = filtrarOfertasPorCiudad(ciudadSeleccionada)
+            mostrarResultado(ciudadSeleccionada, ofertasFiltradas)
+        }
+
     } // <-- AQUÍ SE CIERRA EL ONCREATE
 
     // (FASE 6) Configurar el Spinner (Ahora está al mismo nivel que onCreate)
@@ -111,6 +117,50 @@ class MainActivity : AppCompatActivity() {
         }
 
         return listaOfertas
+    }
+    private fun filtrarOfertasPorCiudad(ciudad: String): List<Oferta> {
+        // filter devuelve una nueva lista solo con las ofertas de la ciudad elegida
+        return if (ciudad == "Todas") {
+            ofertas
+        } else {
+            ofertas.filter { it.ciudad == ciudad }
+        }
+    }
+
+    private fun mostrarResultado(ciudad: String, ofertasFiltradas: List<Oferta>) {
+        // Cálculos del informe
+        val numeroOfertas = ofertasFiltradas.size
+        val salarioTotal = ofertasFiltradas.sumOf { it.salario }
+        val salarioMedio = if (ofertasFiltradas.size > 0) {
+            ofertasFiltradas.map { it.salario }.average()
+        } else {
+            0.0
+        }
+        val salarioMaximo = ofertasFiltradas.maxOfOrNull { it.salario } ?: 0
+
+        // Asignar los textos a los TextView
+        textoCiudadSeleccionada.text = "Ciudad seleccionada: $ciudad"
+        textoNumeroOfertas.text = "Numero de ofertas: $numeroOfertas"
+        textoSalarioTotal.text = "Salario total: ${formatearSalario(salarioTotal)}"
+        textoSalarioMedio.text = "Salario medio: ${formatearSalario(salarioMedio.toInt())}"
+        textoSalarioMaximo.text = "Salario máximo: ${formatearSalario(salarioMaximo)}"
+
+        // Limpiamos la lista anterior (por si el usuario filtra varias veces)
+        contenedorOfertas.removeAllViews()
+
+        // Recorremos el resultado y creamos un TextView para cada oferta
+        ofertasFiltradas.forEachIndexed { indice, oferta ->
+            val textoOferta = TextView(this)
+            textoOferta.text = "${indice + 1}. ${oferta.puesto}\n" +
+                    "${oferta.empresa} - ${oferta.ciudad} - ${formatearSalario(oferta.salario)}"
+            textoOferta.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16f)
+            textoOferta.setPadding(0, 0, 0, 24)
+            contenedorOfertas.addView(textoOferta)
+        }
+    }
+
+    private fun formatearSalario(salario: Int): String {
+        return "%d".format(salario).replace(" ", ".") + " €"
     }
 
 } // <-- AQUÍ SE CIERRA LA CLASE MAINACTIVITY
